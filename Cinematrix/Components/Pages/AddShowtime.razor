@@ -1,0 +1,155 @@
+@page "/add-showtime"
+@using System.Text.RegularExpressions
+@using Cinematrix.Data
+@using Cinematrix.Services
+@using Microsoft.AspNetCore.Authorization
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@attribute [Authorize(Policy = "ManageMoviesPolicy")]
+@inject NavigationManager NavigationManager
+@inject IMovieService MovieService
+
+<h1>Add Showtime</h1>
+
+<div class="form-container">
+    <form @onsubmit="HandleSubmit">
+        <div class="form-group">
+            <label for="movie">Movie</label>
+            <select id="movie" @bind="form.MovieId" class="form-control">
+                <option value="" disabled selected>Please select a movie</option>
+                @foreach (var movie in movies)
+                {
+                    <option value="@movie.Id">@movie.Title</option>
+                }
+            </select>
+            @if (!string.IsNullOrWhiteSpace(errors.MovieId))
+            {
+                <div class="error-message">@errors.MovieId</div>
+            }
+        </div>
+
+        <div class="form-group">
+            <label for="date">Date</label>
+            <input id="date" type="text" @bind="form.Date" class="form-control"
+                   placeholder="@DateTime.Today.ToString("yyyy-MM-dd")"/>
+            @if (!string.IsNullOrWhiteSpace(errors.Date))
+            {
+                <div class="error-message">@errors.Date</div>
+            }
+        </div>
+
+        <div class="form-group">
+            <label for="time">Time</label>
+            <input id="time" type="text" @bind="form.Time" class="form-control" placeholder="13:30"/>
+            @if (!string.IsNullOrWhiteSpace(errors.Time))
+            {
+                <div class="error-message">@errors.Time</div>
+            }
+        </div>
+
+        <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+</div>
+
+@if (showConfirmationPopup)
+{
+    <div class="popup">
+        <div class="popup-content">
+            <p>Are you sure you want to add this showtime?</p>
+            <button class="btn btn-success" @onclick="ConfirmAdd">Confirm</button>
+            <button class="btn btn-secondary" @onclick="CancelAdd">Cancel</button>
+        </div>
+    </div>
+}
+
+@code {
+    private ShowtimeForm form = new();
+    private ValidationErrors errors = new();
+    private bool showConfirmationPopup;
+    private List<Movie> movies = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        movies = await MovieService.GetMovies();
+    }
+
+    private async Task HandleSubmit()
+    {
+        errors = ValidateForm(form);
+
+        if (errors.HasErrors)
+        {
+            // Don't proceed to the confirmation popup
+            return;
+        }
+
+        showConfirmationPopup = true;
+    }
+
+    private async Task ConfirmAdd()
+    {
+        try
+        {
+            _ = await MovieService.AddShowtime(form.MovieId, form.Date, form.Time);
+        }
+        catch (BadRequestException e)
+        {
+            NavigationManager.NavigateTo($"/error/{e.ErrorCode}");
+            return;
+        }
+
+        ResetForm();
+        showConfirmationPopup = false;
+    }
+
+    private void CancelAdd()
+    {
+        showConfirmationPopup = false;
+    }
+
+    private void ResetForm()
+    {
+        form = new ShowtimeForm();
+        errors = new ValidationErrors();
+    }
+
+    private static ValidationErrors ValidateForm(ShowtimeForm form)
+    {
+        var validationErrors = new ValidationErrors();
+
+        if (string.IsNullOrWhiteSpace(form.MovieId) || !Guid.TryParse(form.MovieId, out _))
+        {
+            validationErrors.MovieId = "Movie is not selected";
+        }
+
+        if (string.IsNullOrWhiteSpace(form.Date) || !Regex.IsMatch(form.Date, @"^\d{4}-\d{2}-\d{2}$"))
+        {
+            validationErrors.Date = "Invalid date format. Please use yyyy-MM-dd.";
+        }
+
+        if (string.IsNullOrWhiteSpace(form.Time) || !Regex.IsMatch(form.Time, @"^(0[0-9]|1[0-9]|2[0-3]):([0-5][0-9])$"))
+        {
+            validationErrors.Time = "Invalid time format. Please use HH:mm.";
+        }
+
+        return validationErrors;
+    }
+
+    public class ShowtimeForm
+    {
+        public string MovieId { get; set; }
+        public string Date { get; set; }
+        public string Time { get; set; }
+    }
+
+    private class ValidationErrors
+    {
+        public string MovieId { get; set; }
+        public string Date { get; set; }
+        public string Time { get; set; }
+
+        public bool HasErrors => !string.IsNullOrWhiteSpace(MovieId) ||
+                                 !string.IsNullOrWhiteSpace(Date) ||
+                                 !string.IsNullOrWhiteSpace(Time);
+    }
+
+}

@@ -1,0 +1,132 @@
+@page "/make-reservation/{ShowtimeId}"
+@using Cinematrix.Services
+@using Microsoft.AspNetCore.Authorization
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@attribute [Authorize]
+@inject NavigationManager NavigationManager
+@inject IMovieService MovieService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<div class="centered-container">
+    <h1>Reservation</h1>
+
+    <h3>Seat Selection</h3>
+
+    <div class="seat-grid">
+        @for (var col = 0; col < 10; col++)
+        {
+            <div class="row">
+                @for (var row = 0; row < 7; row++)
+                {
+                    var seat = GetSeat(col, row);
+                    var seatClass = GetSeatClass(seat);
+                    <div class="@seatClass" @onclick="() => SelectSeat(seat)">
+                        @seat
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <h3>Total Price:</h3>
+    <p>@(FormatPrice(selectedSeats.Count * ticketPrice)) PLN</p>
+
+    <button class="btn btn-primary" @onclick="SubmitPurchase" disabled="@(selectedSeats.Count == 0)">
+        Purchase @(FormatPrice(selectedSeats.Count * ticketPrice)) PLN
+    </button>
+</div>
+
+@if (showConfirmationPopup)
+{
+    <div class="popup">
+        <div class="popup-content">
+            <p>Are you sure you want to add this movie?</p>
+            <button class="btn btn-success" @onclick="ConfirmPurchase">Confirm</button>
+            <button class="btn btn-secondary" @onclick="CancelPurchase">Cancel</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string ShowtimeId { get; set; }
+
+    private bool showConfirmationPopup;
+    private int ticketPrice;
+    private List<string> reservedSeats = [];
+    private HashSet<string> selectedSeats = [];
+    
+    protected override async Task OnInitializedAsync()
+    {
+        reservedSeats = await MovieService.GetReservedSeats(ShowtimeId);
+        ticketPrice = MovieService.GetTicketPricePLN();
+    }
+    
+    private static string GetSeat(int col, int row)
+    {
+        var rowLetter = (char)('A' + row);
+        return $"{rowLetter}{col + 1}";
+    }
+
+    private string GetSeatClass(string seat)
+    {
+        if (reservedSeats.Contains(seat))
+        {
+            return "seat reserved";
+        }
+
+        if (selectedSeats.Contains(seat))
+        {
+            return "seat selected";
+        }
+
+        return "seat available";
+    }
+
+    private void SelectSeat(string seat)
+    {
+        if (reservedSeats.Contains(seat)) return;
+
+        if (selectedSeats.Contains(seat))
+        {
+            selectedSeats.Remove(seat);
+        }
+        else
+        {
+            selectedSeats.Add(seat);
+        }
+    }
+
+    private void SubmitPurchase()
+    {
+        showConfirmationPopup = true;
+    }
+    
+    private async Task ConfirmPurchase()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        
+        try
+        {
+            _ = await MovieService.MakeReservation(ShowtimeId, selectedSeats.ToArray(), user.Identity.Name);
+        }
+        catch (BadRequestException e)
+        {
+            NavigationManager.NavigateTo($"/error/{e.ErrorCode}");
+            return;
+        }
+        
+        showConfirmationPopup = false;
+        NavigationManager.NavigateTo("/my-reservations");
+    }
+
+    private void CancelPurchase()
+    {
+        showConfirmationPopup = false;
+    }
+
+    private static string FormatPrice(int price)
+    {
+        return (price / 100.0).ToString("F2").Replace('.', ',');
+    }
+}

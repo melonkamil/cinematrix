@@ -1,0 +1,38 @@
+@page "/movie-details/{MovieId}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using Cinematrix.Data
+@using Cinematrix.Services
+@inject NavigationManager NavigationManager
+@inject IMovieService MovieService
+
+<div class="movie-details">
+    @if (movie != null)
+    {
+        <h1>@movie.Title</h1>
+        <img src="@movie.ImageUrl" alt="Movie Poster" class="movie-poster" />
+        <p class="movie-description">@movie.Description</p>
+    }
+    else
+    {
+        <p>Loading movie details...</p>
+    }
+</div>
+
+@code {
+    [Parameter] 
+    public string MovieId { get; set; }
+    
+    private Movie movie;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            movie = await MovieService.FindMovie(MovieId);
+        }
+        catch (NotFoundException e)
+        {
+            NavigationManager.NavigateTo($"/error/{e.ErrorCode}");
+        }
+    }
+}

@@ -1,0 +1,20 @@
+.movie-details {
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: center;
+    padding: 20px;
+}
+
+.movie-poster {
+    width: 100%;
+    height: auto;
+    max-height: 600px;
+    object-fit: cover;
+    margin-top: 20px;
+}
+
+.movie-description {
+    font-size: 1.1em;
+    margin-top: 20px;
+    color: #555;
+}

@@ -1,0 +1,48 @@
+@page "/my-reservations"
+@using Cinematrix.Services
+@using Microsoft.AspNetCore.Authorization
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@attribute [Authorize]
+@inject IMovieService MovieService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<h3>My Active Reservations</h3>
+
+@if (activeReservations.Any())
+{
+    <div class="reservations-container">
+        @foreach (var reservation in activeReservations)
+        {
+            <div class="reservation-card">
+                <h4>@reservation.MovieTitle</h4>
+                <p><strong>Reservation ID:</strong> @reservation.ReservationId</p>
+                <p><strong>Show Date:</strong> @reservation.Date</p>
+                <p><strong>Show Time:</strong> @reservation.Time</p>
+                <p><strong>Total Cost:</strong> @(FormatPrice(reservation.TotalCost)) PLN</p>
+                <p><strong>Seats:</strong> @string.Join(", ", reservation.Seats)</p>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <p class="no-reservations">You have no active reservations.</p>
+}
+
+@code {
+    private List<ReservationView> activeReservations = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        activeReservations = await MovieService.GetUserActiveReservations(user.Identity.Name);
+    }
+
+    private static string FormatPrice(int price)
+    {
+        return (price / 100.0).ToString("F2").Replace('.', ',');
+    }
+
+}

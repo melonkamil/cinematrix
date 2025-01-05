@@ -1,0 +1,141 @@
+@page "/"
+@rendermode @(new InteractiveServerRenderMode(prerender:false))
+@using System.Globalization
+@using Cinematrix.Services
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IMovieService MovieService
+
+<div class="days-list">
+    @foreach (var day in days)
+    {
+        <button class="day-button" @onclick="() => ShowMovies(day)">
+            @GetDayButtonLabel(day)
+        </button>
+    }
+</div>
+
+<div class="movie-list">
+    @foreach (var movie in movieList)
+    {
+        <div class="movie-item">
+            <img src="@movie.ImageUrl" alt="@movie.Title" class="movie-image" @onclick="() => GoToMovieDetails(movie.Id)" />
+            <div class="movie-title">@movie.Title</div>
+            <div class="movie-times">
+                @foreach (var showtimeHour in movie.ShowtimeHours)
+                {
+                    <button @onclick="() => ReserveShowtime(showtimeHour)">@showtimeHour.Time</button>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private Day selectedDay;
+    private List<Movie> movieList = [];
+    private List<Day> days = [];
+    private AuthenticationState authState;
+
+    private async Task ShowMovies(Day day)
+    {
+        selectedDay = day;
+        await FetchMoviesForDay(day.Date);
+    }
+    
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateTime.Today;
+        days = Enumerable.Range(0, 7)
+            .Select(i => today.AddDays(i))
+            .Select(date => new Day
+            {
+                Date = date.ToString("yyyy-MM-dd"),
+                Label = date.ToString("ddd", CultureInfo.InvariantCulture)
+            })
+            .ToList();
+        
+        selectedDay = days[0];
+        
+        authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        movieList = await GetMoviesForDay(selectedDay.Date);
+    }
+
+    private async Task<List<Movie>> GetMoviesForDay(string date)
+    {
+        var showtimes = await MovieService.GetShowtimesByDate(date);
+        var movies = GroupByMovie(showtimes);
+        return movies;
+    }
+    
+    private async Task FetchMoviesForDay(string date)
+    {
+        movieList = await GetMoviesForDay(date);
+    }
+
+    private async Task ReserveShowtime(ShowtimeHour showtimeHour)
+    {
+        var user = authState.User;
+        
+        if (user.Identity.IsAuthenticated)
+        {
+            Navigation.NavigateTo($"/make-reservation/{showtimeHour.ShowtimeId}");
+        }
+        else
+        {
+            Navigation.NavigateTo("/account/login?ReturnUrl=%2F");
+        }
+    }
+
+    private void GoToMovieDetails(string movieId)
+    {
+        Navigation.NavigateTo($"/movie-details/{movieId}");
+    }
+
+    private static string GetDayButtonLabel(Day day)
+    {
+        var date = DateTime.Parse(day.Date);
+        return $"{day.Label} {date:d.MM}";
+    }
+    
+    private static List<Movie> GroupByMovie(List<Data.Showtime> showtimes)
+    {
+       var movies = showtimes.GroupBy(s => s.Movie)
+            .Select(group => new Movie
+            {
+                Id = group.Key.Id,
+                Title = group.Key.Title,
+                Description = group.Key.Description,
+                ImageUrl = group.Key.ImageUrl,
+                ShowtimeHours = group.Select(s => new ShowtimeHour
+                {
+                    ShowtimeId = s.Id,
+                    Time = s.Time
+                }).ToList()
+            })
+            .ToList();
+
+       return movies;
+    }
+    
+    public class Movie
+    {
+        public string Id { get; set; }
+        public string Title { get; set; }
+        public string Description { get; set; }
+        public string ImageUrl { get; set; }
+        public List<ShowtimeHour> ShowtimeHours { get; set; }
+    }
+
+    public class Day
+    {
+        public string Date { get; set; }
+        public string Label { get; set; }
+    }
+
+    public class ShowtimeHour
+    {
+        public string ShowtimeId { get; set; }
+        public string Time { get; set; }
+    }
+}

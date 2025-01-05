@@ -1,0 +1,116 @@
+@page "/delete-movie"
+@using Cinematrix.Data
+@using Cinematrix.Services
+@using Microsoft.AspNetCore.Authorization
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@attribute [Authorize(Policy = "ManageMoviesPolicy")]
+@inject NavigationManager NavigationManager
+@inject IMovieService MovieService
+
+<div class="form-container">
+    <form @onsubmit="HandleSubmit">
+        <div class="form-group">
+            <label for="movie">Movie</label>
+            <select id="movie" @bind="movieId" class="form-control">
+                <option value="" disabled selected>Please select a movie</option>
+                @foreach (var movie in movies)
+                {
+                    <option value="@movie.Id">@movie.Title</option>
+                }
+            </select>
+            @if (!string.IsNullOrWhiteSpace(errors.MovieId))
+            {
+                <div class="error-message">@errors.MovieId</div>
+            }
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Delete</button>
+    </form>
+</div>
+
+@if (showConfirmationPopup)
+{
+    <div class="popup">
+        <div class="popup-content">
+            <p>Are you sure you want to add this movie?</p>
+            <button class="btn btn-success" @onclick="ConfirmAdd">Confirm</button>
+            <button class="btn btn-secondary" @onclick="CancelAdd">Cancel</button>
+        </div>
+    </div>
+}
+
+@code {
+    private string movieId = string.Empty;
+    private ValidationErrors errors = new();
+    private bool showConfirmationPopup;
+    private List<Movie> movies = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMovies();
+    }
+
+    private async Task LoadMovies()
+    {
+        movies = await MovieService.GetMovies();
+    }
+
+    private async Task HandleSubmit()
+    {
+        errors = ValidateForm(movieId);
+
+        if (errors.HasErrors)
+        {
+            // Don't proceed to the confirmation popup
+            return;
+        }
+
+        showConfirmationPopup = true;
+    }
+
+    private async Task ConfirmAdd()
+    {
+        try
+        {
+            await MovieService.DeleteMovieAndShowtimes(movieId);
+        }
+        catch (BadRequestException e)
+        {
+            NavigationManager.NavigateTo($"/error/{e.ErrorCode}");
+            return;
+        }
+
+        await LoadMovies();
+        ResetForm();
+        showConfirmationPopup = false;
+    }
+
+    private void CancelAdd()
+    {
+        showConfirmationPopup = false;
+    }
+
+    private void ResetForm()
+    {
+        movieId = string.Empty;
+        errors = new ValidationErrors();
+    }
+
+    private static ValidationErrors ValidateForm(string movieId)
+    {
+        var validationErrors = new ValidationErrors();
+
+        if (string.IsNullOrWhiteSpace(movieId) || !Guid.TryParse(movieId, out _))
+        {
+            validationErrors.MovieId = "Movie is not selected";
+        }
+
+        return validationErrors;
+    }
+
+    private class ValidationErrors
+    {
+        public string MovieId { get; set; }
+        public bool HasErrors => !string.IsNullOrWhiteSpace(MovieId);
+    }
+}

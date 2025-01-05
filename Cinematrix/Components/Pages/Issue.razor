@@ -1,0 +1,19 @@
+@page "/error/{ErrorCode}"
+@using Cinematrix.Services
+<h1>Error @ErrorCode</h1>
+<h2>@errorMessage.</h2>
+
+@code {
+    [Parameter] public string ErrorCode { get; set; }
+
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (int.TryParse(ErrorCode, out var intErrorCode))
+        {
+            errorMessage = ErrorCodeRegistry.ErrorMessageByCode.TryGetValue(intErrorCode, out var message) 
+                ? message : "An unhandled error has occurred";
+        }
+    }
+}

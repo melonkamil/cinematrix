@@ -1,0 +1,140 @@
+@page "/add-movie"
+@using Cinematrix.Services
+@using Microsoft.AspNetCore.Authorization
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@attribute [Authorize(Policy = "ManageMoviesPolicy")]
+@inject NavigationManager NavigationManager
+@inject IMovieService MovieService
+
+<h1>Add Movie</h1>
+
+<div class="form-container">
+    <form @onsubmit="HandleSubmit">
+        <div class="form-group">
+            <label for="title">Title</label>
+            <input id="title" @bind="form.Title" class="form-control"/>
+            @if (!string.IsNullOrWhiteSpace(errors.Title))
+            {
+                <div class="error-message">@errors.Title</div>
+            }
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" @bind="form.Description" class="form-control"></textarea>
+            @if (!string.IsNullOrWhiteSpace(errors.Description))
+            {
+                <div class="error-message">@errors.Description</div>
+            }
+        </div>
+
+        <div class="form-group">
+            <label for="imageUrl">Image URL</label>
+            <input id="imageUrl" @bind="form.ImageUrl" class="form-control"/>
+            @if (!string.IsNullOrWhiteSpace(errors.ImageUrl))
+            {
+                <div class="error-message">@errors.ImageUrl</div>
+            }
+        </div>
+
+        <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+</div>
+
+@if (showConfirmationPopup)
+{
+    <div class="popup">
+        <div class="popup-content">
+            <p>Are you sure you want to add this movie?</p>
+            <button class="btn btn-success" @onclick="ConfirmAdd">Confirm</button>
+            <button class="btn btn-secondary" @onclick="CancelAdd">Cancel</button>
+        </div>
+    </div>
+}
+
+@code {
+    private MovieForm form = new();
+    private ValidationErrors errors = new();
+    private bool showConfirmationPopup;
+
+    private async Task HandleSubmit()
+    {
+        errors = ValidateForm(form);
+
+        if (errors.HasErrors)
+        {
+            // Don't proceed to the confirmation popup
+            return; 
+        }
+
+        showConfirmationPopup = true;
+    }
+
+    private async Task ConfirmAdd()
+    {
+        try
+        {
+            _ = await MovieService.AddMovie(form.Title, form.Description, form.ImageUrl);
+        }
+        catch (BadRequestException e)
+        {
+            NavigationManager.NavigateTo($"/error/{e.ErrorCode}");
+            return;
+        }
+
+        ResetForm();
+        showConfirmationPopup = false;
+    }
+
+    private void CancelAdd()
+    {
+        showConfirmationPopup = false;
+    }
+
+    private void ResetForm()
+    {
+        form = new MovieForm();
+        errors = new ValidationErrors();
+    }
+
+    private static ValidationErrors ValidateForm(MovieForm form)
+    {
+        var validationErrors = new ValidationErrors();
+
+        if (string.IsNullOrWhiteSpace(form.Title) || form.Title.Length > 200)
+        {
+            validationErrors.Title = "Title is required and must be less than 200 characters.";
+        }
+
+        if (string.IsNullOrWhiteSpace(form.Description) || form.Description.Length > 1000)
+        {
+            validationErrors.Description = "Description is required and must be less than 1000 characters.";
+        }
+
+        if (string.IsNullOrWhiteSpace(form.ImageUrl) || !Uri.IsWellFormedUriString(form.ImageUrl, UriKind.Absolute) || form.ImageUrl.Length > 500)
+        {
+            validationErrors.ImageUrl = "A valid Image URL is required and must be less than 500 characters.";
+        }
+
+        return validationErrors;
+    }
+
+    private class MovieForm
+    {
+        public string Title { get; set; }
+        public string Description { get; set; }
+        public string ImageUrl { get; set; }
+    }
+
+    private class ValidationErrors
+    {
+        public string Title { get; set; }
+        public string Description { get; set; }
+        public string ImageUrl { get; set; }
+
+        public bool HasErrors => !string.IsNullOrWhiteSpace(Title) ||
+                                 !string.IsNullOrWhiteSpace(Description) ||
+                                 !string.IsNullOrWhiteSpace(ImageUrl);
+    }
+
+}
