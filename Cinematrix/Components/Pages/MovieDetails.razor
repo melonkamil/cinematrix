@@ -9,7 +9,7 @@
     @if (movie != null)
     {
         <h1>@movie.Title</h1>
-        <img src="@movie.ImageUrl" alt="Movie Poster" class="movie-poster" />
+        <img src="@movie.ImageUrl" alt="Movie Poster" class="movie-poster" style="object-fit:contain; height:auto; max-width: 100%;" />
         <p class="movie-description">@movie.Description</p>
     }
     else

@@ -19,7 +19,7 @@
     @foreach (var movie in movieList)
     {
         <div class="movie-item">
-            <img src="@movie.ImageUrl" alt="@movie.Title" class="movie-image" @onclick="() => GoToMovieDetails(movie.Id)" />
+            <img src="@movie.ImageUrl" alt="@movie.Title" class="movie-image" style="object-fit:contain; height:auto; max-width: 100%;" @onclick="() => GoToMovieDetails(movie.Id)" />
             <div class="movie-title">@movie.Title</div>
             <div class="movie-times">
                 @foreach (var showtimeHour in movie.ShowtimeHours)
